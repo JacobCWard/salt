@@ -559,7 +559,7 @@ def _virtual(osdata):
                 grains['virtual'] = output
                 break
             elif 'vmware' in output:
-                grains['virtual'] = 'VMWare'
+                grains['virtual'] = 'VMware'
                 break
             elif 'microsoft' in output:
                 grains['virtual'] = 'VirtualPC'
@@ -575,7 +575,7 @@ def _virtual(osdata):
                 grains['virtual'] = output
                 break
             elif 'vmware' in output:
-                grains['virtual'] = 'VMWare'
+                grains['virtual'] = 'VMware'
                 break
             elif 'parallels' in output:
                 grains['virtual'] = 'Parallels'
@@ -970,7 +970,7 @@ def id_():
     '''
     return {'id': __opts__.get('id', '')}
 
-_REPLACE_LINUX_RE = re.compile(r'linux', re.IGNORECASE)
+_REPLACE_LINUX_RE = re.compile(r'\Wlinux', re.IGNORECASE)
 
 # This maps (at most) the first ten characters (no spaces, lowercased) of
 # 'osfullname' to the 'os' grain that Salt traditionally uses.
@@ -1016,9 +1016,9 @@ _OS_FAMILY_MAP = {
     'XCP': 'RedHat',
     'XenServer': 'RedHat',
     'Mandrake': 'Mandriva',
-    'ESXi': 'VMWare',
+    'ESXi': 'VMware',
     'Mint': 'Debian',
-    'VMWareESX': 'VMWare',
+    'VMwareESX': 'VMware',
     'Bluewhite64': 'Bluewhite',
     'Slamd64': 'Slackware',
     'SLES': 'Suse',
@@ -1389,8 +1389,8 @@ def os_data():
         osrelease = __salt__['cmd.run']('sw_vers -productVersion')
         osname = __salt__['cmd.run']('sw_vers -productName')
         osbuild = __salt__['cmd.run']('sw_vers -buildVersion')
-        grains['os'] = 'Mac'
-        grains['os_family'] = 'Darwin'
+        grains['os'] = 'MacOS'
+        grains['os_family'] = 'MacOS'
         grains['osfullname'] = "{0} {1}".format(osname, osrelease)
         grains['osrelease'] = osrelease
         grains['osbuild'] = osbuild
@@ -2036,7 +2036,7 @@ def _smartos_zone_data():
     for mdata_grain in __salt__['cmd.run']('mdata-list').splitlines():
         grain_data = __salt__['cmd.run']('mdata-get {0}'.format(mdata_grain))
 
-        if mdata_grain == 'salt:roles':  # parse salt:roles as roles grain
+        if mdata_grain == 'roles':  # parse roles as roles grain
             grain_data = grain_data.split(',')
             grains['roles'] = grain_data
         else:  # parse other grains into mdata

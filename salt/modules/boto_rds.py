@@ -236,14 +236,16 @@ def create(name, allocated_storage, db_instance_class, engine,
             log.info('Created RDS {0}'.format(name))
             return True
         while True:
+            log.info('Waiting 10 secs...')
             sleep(10)
             _describe = describe(name, tags, region, key, keyid, profile)
             if not _describe:
                 return True
-            if _describe['db_instance_status'] in wait_statuses:
+            if _describe['db_instance_status'] == wait_status:
                 log.info('Created RDS {0} with current status '
                          '{1}'.format(name, _describe['db_instance_status']))
                 return True
+            log.info('Current status: {0}'.format(_describe['db_instance_status']))
 
     except boto.exception.BotoServerError as e:
         log.debug(e)
@@ -457,6 +459,8 @@ def get_endpoint(name, tags=None, region=None, key=None, keyid=None,
         salt myminion boto_rds.get_endpoint myrds
 
     '''
+    ret = False
+
     conn = _get_conn(region=region, key=key, keyid=keyid, profile=profile)
 
     if not __salt__['boto_rds.exists'](name, tags, region, key, keyid,
@@ -468,10 +472,17 @@ def get_endpoint(name, tags=None, region=None, key=None, keyid=None,
         log.debug(e)
         return False
     insts = rds['DescribeDBInstancesResponse']['DescribeDBInstancesResult']
+    found = False
     endpoints = []
     for instance in insts['DBInstances']:
-        endpoints.append(instance['Endpoint']['Address'])
-    return endpoints[0]
+        if 'Endpoint' in instance and instance['Endpoint'] is not None and 'Address' in instance['Endpoint']:
+            found = True
+            endpoints.append(instance['Endpoint']['Address'])
+
+    if found:
+        ret = endpoints[0]
+
+    return ret
 
 
 def delete(name, skip_final_snapshot=None, final_db_snapshot_identifier=None,
@@ -594,3 +605,59 @@ def _pythonize_dict(dictionary):
     _ret = dict((boto.utils.pythonize_name(k), _pythonize_dict(v) if
                  hasattr(v, 'keys') else v) for k, v in dictionary.items())
     return _ret
+
+
+def describe_parameter_group(name, filters=None, max_records=None, marker=None, region=None, key=None, keyid=None, profile=None):
+    '''
+    Returns a list of `DBParameterGroup` descriptions.
+    CLI example to description of parameter group::
+
+        salt myminion boto_rds.describe_parameter_group parametergroupname\
+            region=us-east-1
+    '''
+    conn = _get_conn(region=region, key=key, keyid=keyid, profile=profile)
+    if not conn:
+        return False
+    if not __salt__['boto_rds.parameter_group_exists'](name, tags=None, region=region, key=key, keyid=keyid, profile=profile):
+        return False
+    try:
+        info = conn.describe_db_parameter_groups(name, filters, max_records, marker)
+        if not info:
+            msg = 'Failed to get RDS description for group {0}.'.format(name)
+            log.error(msg)
+            return False
+        log.info('Got RDS descrition for group {0}.'.format(name))
+        return info
+    except boto.exception.BotoServerError as e:
+        log.debug(e)
+        msg = 'Failed to get RDS description for group {0}.'.format(name)
+        log.error(msg)
+        return False
+
+
+def describe_parameters(name, source=None, max_records=None, marker=None, region=None, key=None, keyid=None, profile=None):
+    '''
+    Returns a list of `DBParameterGroup` parameters.
+    CLI example to description of parameters ::
+
+        salt myminion boto_rds.describe_parameters parametergroupname\
+            region=us-east-1
+    '''
+    conn = _get_conn(region=region, key=key, keyid=keyid, profile=profile)
+    if not conn:
+        return False
+    if not __salt__['boto_rds.parameter_group_exists'](name, tags=None, region=region, key=key, keyid=keyid, profile=profile):
+        return False
+    try:
+        info = conn.describe_db_parameters(name, source, max_records, marker)
+        if not info:
+            msg = 'Failed to get RDS parameters for group {0}.'.format(name)
+            log.error(msg)
+            return False
+        log.info('Got RDS parameters for group {0}.'.format(name))
+        return info
+    except boto.exception.BotoServerError as e:
+        log.debug(e)
+        msg = 'Failed to get RDS parameters {0}.'.format(name)
+        log.error(msg)
+        return False

@@ -1087,7 +1087,6 @@ def managed(name,
             defaults=None,
             env=None,
             backup='',
-            show_diff=None,
             show_changes=True,
             create=True,
             contents=None,
@@ -1253,12 +1252,6 @@ def managed(name,
 
     backup
         Overrides the default backup mode for this specific file.
-
-    show_diff
-        DEPRECATED: Please use show_changes.
-
-        If set to ``False``, the diff will not be shown in the return data if
-        changes are made.
 
     show_changes
         Output a unified diff of the old file and the new file. If ``False``
@@ -1530,17 +1523,6 @@ def managed(name,
         return _error(
             ret, 'Specified file {0} is not an absolute path'.format(name))
 
-    if isinstance(env, six.string_types):
-        msg = (
-            'Passing a salt environment should be done using \'saltenv\' not '
-            '\'env\'. This warning will go away in Salt Boron and this '
-            'will be the default and expected behavior. Please update your '
-            'state files.'
-        )
-        salt.utils.warn_until('Boron', msg)
-        ret.setdefault('warnings', []).append(msg)
-        # No need to set __env__ = env since that's done in the state machinery
-
     if os.path.isdir(name):
         ret['comment'] = 'Specified target {0} is a directory'.format(name)
         ret['result'] = False
@@ -1588,14 +1570,6 @@ def managed(name,
         )
     else:
         ret['pchanges'] = {}
-
-    if show_diff is not None:
-        show_changes = show_diff
-        msg = (
-            'The \'show_diff\' argument to the file.managed state has been '
-            'deprecated, please use \'show_changes\' instead.'
-        )
-        salt.utils.warn_until('Boron', msg)
 
     try:
         if __opts__['test']:
@@ -1674,7 +1648,7 @@ def managed(name,
                 backup,
                 makedirs,
                 template,
-                show_diff,
+                show_changes,
                 contents,
                 dir_mode,
                 follow_symlinks)
@@ -1730,7 +1704,7 @@ def managed(name,
                 backup,
                 makedirs,
                 template,
-                show_diff,
+                show_changes,
                 contents,
                 dir_mode,
                 follow_symlinks)
@@ -2284,17 +2258,6 @@ def recurse(name,
         return _error(
             ret, 'Specified file {0} is not an absolute path'.format(name))
 
-    if isinstance(env, six.string_types):
-        msg = (
-            'Passing a salt environment should be done using \'saltenv\' not '
-            '\'env\'. This warning will go away in Salt Boron and this '
-            'will be the default and expected behavior. Please update your '
-            'state files.'
-        )
-        salt.utils.warn_until('Boron', msg)
-        ret.setdefault('warnings', []).append(msg)
-        # No need to set __env__ = env since that's done in the state machinery
-
     # expand source into source_list
     source_list = _validate_str_list(source)
 
@@ -2570,18 +2533,101 @@ def recurse(name,
 
 def line(name, content, match=None, mode=None, location=None,
          before=None, after=None, show_changes=True, backup=False,
-         quiet=False, indent=True):
+         quiet=False, indent=True, create=False, user=None,
+         group=None, file_mode=None):
     '''
     Line-based editing of a file.
 
     .. versionadded:: 2015.8.0
 
-    Params are identical to the remote execution function
-    :mod:`file.line <salt.modules.file.line>`.
+    Edit a line in the configuration file.
+
+    name:
+        Filesystem path to the file to be edited.
+
+    content:
+        Content of the line.
+
+    match:
+        Match the target line for an action by
+        a fragment of a string or regular expression.
+
+    mode:
+        Ensure
+            If line does not exist, it will be added.
+
+        Replace
+            If line already exist, it will be replaced.
+
+        Delete
+            Delete the line, once found.
+
+        Insert
+            Insert a line.
+
+    location:
+        start
+            Place the content at the beginning of the file.
+
+        end
+            Place the content at the end of the file.
+
+    before:
+        Regular expression or an exact case-sensitive fragment of the string.
+
+    after:
+        Regular expression or an exact case-sensitive fragment of the string.
+
+    show_changes
+        Output a unified diff of the old file and the new file.
+        If ``False`` return a boolean if any changes were made.
+        Default is ``True``
+
+        .. note::
+
+            Using this option will store two copies of the file in-memory
+            (the original version and the edited version) in order to generate the diff.
+
+    backup
+        Create a backup of the original file with the extension:
+        "Year-Month-Day-Hour-Minutes-Seconds".
+
+    quiet
+        Do not raise any exceptions. E.g. ignore the fact that the file that is
+        tried to be edited does not exist and nothing really happened.
+
+    indent
+        Keep indentation with the previous line.
+
+    If an equal sign (``=``) appears in an argument to a Salt command, it is
+    interpreted as a keyword argument in the format of ``key=val``. That
+    processing can be bypassed in order to pass an equal sign through to the
+    remote shell command by manually specifying the kwarg:
+
+    create
+        Create an empty file if doesn't exists.
+
+    user
+        The user to own the file, this defaults to the user salt is running as
+        on the minion.
+
+        .. versionadded:: Carbon
+
+    group
+        The group ownership set for the file, this defaults to the group salt
+        is running as on the minion On Windows, this is ignored.
+
+        .. versionadded:: Carbon
+
+    file_mode
+        The permissions to set on this file, aka 644, 0775, 4664. Not supported
+        on Windows.
+
+        .. versionadded:: Carbon
 
     .. code-block: yaml
 
-       /etc/myconfig.conf
+       /etc/myconfig.conf:
          file.line:
            - mode: ensure
            - content: my key = my value
@@ -2595,6 +2641,9 @@ def line(name, content, match=None, mode=None, location=None,
            'comment': ''}
     if not name:
         return _error(ret, 'Must provide name to file.line')
+
+    if create and not os.path.isfile(name):
+        managed(name, create=create, user=user, group=group, mode=file_mode)
 
     check_res, check_msg = _check_file(name)
     if not check_res:
@@ -3776,17 +3825,6 @@ def patch(name,
         ret.update(result=True, comment='Patch is already applied')
         return ret
 
-    if isinstance(env, six.string_types):
-        msg = (
-            'Passing a salt environment should be done using \'saltenv\' not '
-            '\'env\'. This warning will go away in Salt Boron and this '
-            'will be the default and expected behavior. Please update your '
-            'state files.'
-        )
-        salt.utils.warn_until('Boron', msg)
-        ret.setdefault('warnings', []).append(msg)
-        # No need to set __env__ = env since that's done in the state machinery
-
     # get cached file or copy it to cache
     cached_source_path = __salt__['cp.cache_file'](source, __env__)
     if not cached_source_path:
@@ -4421,17 +4459,6 @@ def serialize(name,
            'result': True}
     if not name:
         return _error(ret, 'Must provide name to file.serialize')
-
-    if isinstance(env, six.string_types):
-        msg = (
-            'Passing a salt environment should be done using \'saltenv\' not '
-            '\'env\'. This warning will go away in Salt Boron and this '
-            'will be the default and expected behavior. Please update your '
-            'state files.'
-        )
-        salt.utils.warn_until('Boron', msg)
-        ret.setdefault('warnings', []).append(msg)
-        # No need to set __env__ = env since that's done in the state machinery
 
     if not create:
         if not os.path.isfile(name):
